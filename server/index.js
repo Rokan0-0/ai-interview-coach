@@ -1,5 +1,7 @@
 // --- CONFIG IMPORTS ---
 import jwt from 'jsonwebtoken';
+import session from 'express-session';
+import passport from './passportConfig.js';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client'; // This is our database connection
 import bcrypt from 'bcryptjs';
@@ -27,6 +29,21 @@ app.use(cors());
 
 // This tells Express to automatically parse JSON in request bodies
 app.use(express.json());
+
+// --- Session & Passport Middleware (MUST be before API routes) ---
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'a_default_secret_for_development', // Use an environment variable
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+// --- Initialize Passport and its session management ---
+app.use(passport.initialize());
+app.use(passport.session());
+
+// --- PUBLIC ROUTES ---
 
 // Create a simple "GET" route for the root URL
 // This is what someone sees if they just visit http://localhost:5000
@@ -103,21 +120,26 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // 3. Compare the provided password with the stored hash
+    // 3. Check if user has a password (OAuth users don't have passwords)
+    if (!user.password) {
+      return res.status(401).json({ error: 'This account was created with Google. Please sign in with Google.' });
+    }
+
+    // 4. Compare the provided password with the stored hash
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // 4. User is valid! Create a JWT
+    // 5. User is valid! Create a JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email }, // This is the data "payload" in the token
       process.env.JWT_SECRET,                  // The secret key from our .env file
       { expiresIn: '1h' }                       // The token will expire in 1 hour
     );
 
-    // 5. Send the token back to the client
+    // 6. Send the token back to the client
     res.status(200).json({
       message: 'Login successful',
       token: token,
@@ -129,6 +151,32 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// --- GOOGLE AUTH ROUTES ---
+
+// 1. The route the user clicks. It redirects them to Google's login page.
+app.get(
+  '/api/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+// 2. The route Google redirects back to (our "callback URI").
+app.get(
+  '/api/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login', session: false }), // We use JWT, so session is false
+  (req, res) => {
+    // --- 3. Google auth was successful! User is on req.user ---
+    // We now create *our* JWT token, just like in normal login.
+    const token = jwt.sign(
+      { userId: req.user.id, email: req.user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // --- 4. Redirect user back to the *frontend* with the token ---
+    res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
+  }
+);
+
 // --- PROTECTED TEST ROUTE ---
 app.get('/api/protected-test', protect, (req, res) => {
   // If the request gets here, it means the 'protect' middleware passed.
@@ -138,6 +186,8 @@ app.get('/api/protected-test', protect, (req, res) => {
     user: req.user,
   });
 });
+
+// --- PROTECTED API ROUTES ---
 
 // --- GET ALL JOB TRACKS ---
 app.get('/api/tracks', protect, async (req, res) => {

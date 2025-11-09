@@ -16,7 +16,9 @@ generator client {
 model User {
   id        Int       @id @default(autoincrement())
   email     String    @unique
-  password  String    // We will store a hash, not the plain password
+  password  String?   // We will store a hash, not the plain password (optional for OAuth users)
+  googleId  String?   @unique 
+  provider  String    @default("email")
   createdAt DateTime  @default(now())
   answers   Answer[]  // A user can have many answers
 }

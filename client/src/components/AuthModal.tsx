@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -17,21 +18,94 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleGoogleSignIn = () => {
-    // Mock Google sign in
-    onAuthenticated("user@example.com");
-    onClose();
+    // Redirect to the server's Google OAuth endpoint
+    window.location.href = 'http://localhost:5000/api/auth/google';
   };
 
-  const handleEmailAuth = () => {
+  const handleEmailAuth = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+
     if (isRegister && password !== confirmPassword) {
-      alert("Passwords don't match!");
+      setError("Passwords don't match!");
       return;
     }
-    if (email && password) {
-      onAuthenticated(email);
-      onClose();
+
+    if (!email || !password) {
+      setError("Email and password are required.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (isRegister) {
+        // Step 1: Register
+        const registerResponse = await fetch('http://localhost:5000/api/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (!registerResponse.ok) {
+          const registerData = await registerResponse.json();
+          throw new Error(registerData.error || 'Registration failed');
+        }
+
+        // Step 2: Auto-Login after successful registration
+        const loginResponse = await fetch('http://localhost:5000/api/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (!loginResponse.ok) {
+          const loginData = await loginResponse.json();
+          throw new Error(loginData.error || 'Auto-login failed');
+        }
+
+        const loginData = await loginResponse.json();
+        localStorage.setItem('token', loginData.token);
+        onAuthenticated(email);
+        navigate('/dashboard');
+        onClose();
+      } else {
+        // Login
+        const response = await fetch('http://localhost:5000/api/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Login failed');
+        }
+
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
+        onAuthenticated(email);
+        navigate('/dashboard');
+        onClose();
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -76,7 +150,7 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
           </div>
           
           {/* Email Form */}
-          <div className="space-y-4">
+          <form onSubmit={handleEmailAuth} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-[#334155]">Email</Label>
               <div className="relative">
@@ -88,6 +162,7 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 border-[#E2E8F0] focus:border-[#0D9488] focus:ring-[#0D9488]"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -103,6 +178,7 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 border-[#E2E8F0] focus:border-[#0D9488] focus:ring-[#0D9488]"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -119,22 +195,33 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="pl-10 border-[#E2E8F0] focus:border-[#0D9488] focus:ring-[#0D9488]"
+                    disabled={loading}
                   />
                 </div>
               </div>
             )}
             
+            {error && (
+              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200">
+                {error}
+              </div>
+            )}
+            
             <Button 
-              onClick={handleEmailAuth}
-              className="w-full bg-[#0D9488] hover:bg-[#0D9488]/90 text-white py-6"
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#0D9488] hover:bg-[#0D9488]/90 text-white py-6 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isRegister ? "Create Account" : "Sign In"}
+              {loading ? "Loading..." : isRegister ? "Create Account" : "Sign In"}
             </Button>
-          </div>
+          </form>
           
           <div className="text-center">
             <button 
-              onClick={() => setIsRegister(!isRegister)}
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError(null);
+              }}
               className="text-sm text-[#0D9488] hover:underline"
             >
               {isRegister ? "Already have an account? Sign in" : "Don't have an account? Register"}

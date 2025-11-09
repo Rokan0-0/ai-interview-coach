@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { JobTrackCard } from "./JobTrackCard";
 import { Code2, Briefcase, Palette, LineChart, Users, Database } from "lucide-react";
@@ -6,55 +7,84 @@ interface DashboardProps {
   userEmail: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
-  onSelectJobTrack: (track: string) => void;
+  onSelectJobTrack: (trackId: number, trackName: string) => void;
 }
 
-const jobTracks = [
-  {
-    id: "software-engineer",
-    title: "Software Engineer",
+interface Track {
+  id: number;
+  name: string;
+}
+
+const trackMetadata: Record<string, { icon: typeof Code2; description: string; gradient: string }> = {
+  "Software Engineer": {
     icon: Code2,
     description: "Practice coding interviews, system design, and technical problem-solving.",
     gradient: "from-[#0D9488] to-[#14B8A6]"
   },
-  {
-    id: "product-manager",
-    title: "Product Manager",
+  "Product Manager": {
     icon: Briefcase,
     description: "Master product strategy, metrics, and stakeholder communication questions.",
     gradient: "from-[#14B8A6] to-[#10B981]"
   },
-  {
-    id: "designer",
-    title: "UX/UI Designer",
+  "UX/UI Designer": {
     icon: Palette,
     description: "Prepare for design critiques, portfolio reviews, and process questions.",
     gradient: "from-[#10B981] to-[#0D9488]"
   },
-  {
-    id: "data-analyst",
-    title: "Data Analyst",
+  "Data Analyst": {
     icon: LineChart,
     description: "Practice SQL, data interpretation, and analytics case interviews.",
     gradient: "from-[#0D9488] to-[#14B8A6]"
   },
-  {
-    id: "marketing",
-    title: "Marketing Manager",
+  "Marketing Manager": {
     icon: Users,
     description: "Prepare for campaign strategy, metrics, and growth questions.",
     gradient: "from-[#14B8A6] to-[#10B981]"
   },
-  {
-    id: "data-engineer",
-    title: "Data Engineer",
+  "Data Engineer": {
     icon: Database,
     description: "Practice data pipeline, ETL, and infrastructure questions.",
     gradient: "from-[#10B981] to-[#0D9488]"
   },
-];
+};
 
-export function Dashboard({ userEmail, onNavigate, onLogout, onSelectJobTrack }: DashboardProps) {
+export function Dashboard({ userEmail, onNavigate, onLogout, onSelectJobTrack }: DashboardProps) { // The props type will need to be updated in the parent component (App.tsx)
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      // The ProtectedRoute component now handles this redirection.
+      return;
+    }
+
+    const fetchTracks = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/tracks', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch tracks');
+        }
+
+        const data = await response.json();
+        setTracks(data);
+      } catch (err) {
+        console.error('Error fetching tracks:', err);
+        setError('Failed to fetch tracks');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTracks();
+  }, []);
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
       <DashboardSidebar 
@@ -76,19 +106,42 @@ export function Dashboard({ userEmail, onNavigate, onLogout, onSelectJobTrack }:
             </p>
           </div>
           
+          {/* Loading State */}
+          {loading && (
+            <div className="text-center py-12">
+              <p className="text-lg text-[#64748B]">Loading tracks...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="text-center py-12">
+              <p className="text-lg text-red-600">{error}</p>
+            </div>
+          )}
+
           {/* Job Track Grid */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {jobTracks.map((track) => (
-              <JobTrackCard
-                key={track.id}
-                title={track.title}
-                icon={track.icon}
-                description={track.description}
-                gradient={track.gradient}
-                onClick={() => onSelectJobTrack(track.id)}
-              />
-            ))}
-          </div>
+          {!loading && !error && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {tracks.map((track) => {
+                const metadata = trackMetadata[track.name] || {
+                  icon: Briefcase,
+                  description: "Practice interview questions for this track.",
+                  gradient: "from-[#0D9488] to-[#14B8A6]"
+                };
+                return (
+                  <JobTrackCard
+                    key={track.id}
+                    title={track.name}
+                    icon={metadata.icon}
+                    description={metadata.description}
+                    gradient={metadata.gradient}
+                    onClick={() => onSelectJobTrack(track.id, track.name)}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
       </main>
     </div>

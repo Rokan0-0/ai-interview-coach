@@ -1,4 +1,5 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Textarea } from "./ui/textarea";
@@ -8,7 +9,8 @@ import { motion, AnimatePresence } from "motion/react";
 
 interface InterviewPracticeProps {
   userEmail: string;
-  jobTrack: string;
+  trackId: number;
+  trackName: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
   onUsageLimitUpdate: (used: number) => void;
@@ -19,55 +21,112 @@ interface Feedback {
   feedback: string[];
 }
 
-const questions = [
-  "Tell me about a time you faced a difficult technical challenge. How did you approach it?",
-  "Describe a situation where you had to work with a difficult team member. How did you handle it?",
-  "What's your process for learning a new technology or framework?",
-  "Tell me about a project you're most proud of. What was your role and what was the outcome?",
-  "Describe a time when you had to make a trade-off between perfect code and shipping on time.",
-];
+interface Question {
+  id: number;
+  text: string;
+}
 
-export function InterviewPractice({ userEmail, jobTrack, onNavigate, onLogout, onUsageLimitUpdate }: InterviewPracticeProps) {
+export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, onLogout, onUsageLimitUpdate }: InterviewPracticeProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  // Fetch questions when component mounts
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const response = await fetch(`http://localhost:5000/api/tracks/${trackId}/questions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch questions');
+        }
+
+        const data = await response.json();
+        setQuestions(data);
+      } catch (err) {
+        console.error('Error fetching questions:', err);
+        setError('Failed to load questions');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchQuestions();
+  }, [trackId, navigate]);
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  const handleSubmit = async () => {
-    if (!answer.trim()) return;
+  const handleSubmitAnswer = async () => {
+    if (!answer.trim() || !currentQuestion) return;
 
-    setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mock feedback generation
-    const mockRating = Math.floor(Math.random() * 2) + 3; // 3-5
-    const mockFeedback: Feedback = {
-      rating: mockRating,
-      feedback: [
-        "Strong opening that clearly sets the context and your role in the situation.",
-        "Good use of specific examples and metrics to demonstrate impact.",
-        mockRating >= 4 
-          ? "Excellent reflection on lessons learned and how you applied them."
-          : "Consider adding more detail about the challenges you faced and how you overcame them.",
-        mockRating === 5
-          ? "Outstanding answer that demonstrates leadership and technical depth."
-          : "Try to be more specific about the technical decisions you made and why."
-      ]
-    };
-    
-    setFeedback(mockFeedback);
-    setIsLoading(false);
-    onUsageLimitUpdate(1);
+    setIsSubmitting(true);
+    setFeedback(null);
+    setError(null);
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5000/api/answer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          questionId: currentQuestion.id,
+          answerText: answer
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit answer');
+      }
+
+      const data = await response.json();
+      setFeedback(data);
+      onUsageLimitUpdate(1);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+      console.error('Error submitting answer:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleNextQuestion = () => {
-    setCurrentQuestionIndex((currentQuestionIndex + 1) % questions.length);
-    setAnswer("");
-    setFeedback(null);
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setAnswer("");
+      setFeedback(null);
+      setError(null);
+    } else {
+      // Last question - navigate to results (for now, just log)
+      console.log('End of interview');
+      // TODO: Navigate to results page when implemented
+      // navigate('/results');
+    }
   };
 
   const handleTryAgain = () => {
@@ -115,7 +174,7 @@ export function InterviewPractice({ userEmail, jobTrack, onNavigate, onLogout, o
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#0D9488]/10 to-[#14B8A6]/10 border border-[#0D9488]/20 mb-4">
               <Sparkles className="w-4 h-4 text-[#0D9488]" />
               <span className="text-sm text-[#0D9488]">
-                {jobTrack.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                {trackName}
               </span>
             </div>
             <h1 className="text-3xl mb-2" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600 }}>
@@ -136,59 +195,71 @@ export function InterviewPractice({ userEmail, jobTrack, onNavigate, onLogout, o
               </div>
               <div className="flex-1">
                 <h2 className="text-xl leading-relaxed" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}>
-                  {currentQuestion}
+                  {isLoading ? "Loading question..." : currentQuestion?.text || "No question available"}
                 </h2>
               </div>
             </div>
           </Card>
 
-          <AnimatePresence mode="wait">
-            {!feedback ? (
-              // Answering State
-              <motion.div
-                key="answering"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-6"
-              >
-                <Card className="p-8 border-[#E2E8F0]">
-                  <label className="block mb-3 text-[#334155]" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}>
-                    Your Answer
-                  </label>
-                  <Textarea
-                    value={answer}
-                    onChange={(e) => setAnswer(e.target.value)}
-                    placeholder="Type your answer here... Be specific, use examples, and explain your thought process."
-                    className="min-h-[300px] resize-none border-[#E2E8F0] focus:border-[#0D9488] focus:ring-[#0D9488] text-base leading-relaxed"
-                    disabled={isLoading}
-                  />
-                  <p className="mt-3 text-sm text-[#64748B]">
-                    Tip: Use the STAR method (Situation, Task, Action, Result) for behavioral questions.
-                  </p>
-                </Card>
+          {error && (
+            <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
 
-                <div className="flex justify-center">
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={!answer.trim() || isLoading}
-                    size="lg"
-                    className="bg-[#0D9488] hover:bg-[#0D9488]/90 text-white px-12 py-6 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-3 animate-spin" />
-                        Analyzing your answer...
-                      </>
-                    ) : (
-                      <>
-                        Get Feedback
-                        <ArrowRight className="w-5 h-5 ml-3" />
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </motion.div>
+          {isLoading && questions.length === 0 ? (
+            <div className="text-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#0D9488]" />
+              <p className="text-[#64748B]">Loading questions...</p>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              {!feedback ? (
+                // Answering State
+                <motion.div
+                  key="answering"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
+                  <Card className="p-8 border-[#E2E8F0]">
+                    <label className="block mb-3 text-[#334155]" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}>
+                      Your Answer
+                    </label>
+                    <Textarea
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      placeholder="Type your answer here... Be specific, use examples, and explain your thought process."
+                      className="min-h-[300px] resize-none border-[#E2E8F0] focus:border-[#0D9488] focus:ring-[#0D9488] text-base leading-relaxed"
+                      disabled={isSubmitting}
+                    />
+                    <p className="mt-3 text-sm text-[#64748B]">
+                      Tip: Use the STAR method (Situation, Task, Action, Result) for behavioral questions.
+                    </p>
+                  </Card>
+
+                  <div className="flex justify-center">
+                    <Button
+                      onClick={handleSubmitAnswer}
+                      disabled={!answer.trim() || isSubmitting || !currentQuestion}
+                      size="lg"
+                      className="bg-[#0D9488] hover:bg-[#0D9488]/90 text-white px-12 py-6 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                          Analyzing your answer...
+                        </>
+                      ) : (
+                        <>
+                          Submit Answer
+                          <ArrowRight className="w-5 h-5 ml-3" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </motion.div>
             ) : (
               // Feedback State
               <motion.div
@@ -294,6 +365,7 @@ export function InterviewPractice({ userEmail, jobTrack, onNavigate, onLogout, o
               </motion.div>
             )}
           </AnimatePresence>
+          )}
         </div>
       </main>
     </div>
