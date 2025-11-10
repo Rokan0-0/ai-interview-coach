@@ -41,7 +41,8 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
     const fetchQuestions = async () => {
       const token = localStorage.getItem('token');
       if (!token) {
-        navigate('/login');
+        setError('No authentication token found');
+        setIsLoading(false);
         return;
       }
 
@@ -54,6 +55,11 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
         });
 
         if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+            return;
+          }
           throw new Error('Failed to fetch questions');
         }
 
@@ -68,7 +74,7 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
     };
 
     fetchQuestions();
-  }, [trackId, navigate]);
+  }, [trackId]);
 
   const currentQuestion = questions[currentQuestionIndex];
 
@@ -81,7 +87,8 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
 
     const token = localStorage.getItem('token');
     if (!token) {
-      navigate('/login');
+      setError('No authentication token found');
+      setIsSubmitting(false);
       return;
     }
 
@@ -99,7 +106,12 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+          return;
+        }
+        const errorData = await response.json().catch(() => ({ error: 'Failed to submit answer' }));
         throw new Error(errorData.error || 'Failed to submit answer');
       }
 

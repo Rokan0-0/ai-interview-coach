@@ -23,18 +23,21 @@ const protect = async (req, res, next) => {
         select: { id: true, email: true, createdAt: true },
       });
 
+      if (!req.user) {
+        return res.status(401).json({ error: 'Not authorized, user not found' });
+      }
+
       // 5. Token is valid! Call the *next* function in the chain (our route handler)
-      next();
+      return next();
 
     } catch (error) {
-      console.error(error);
-      res.status(401).json({ error: 'Not authorized, token failed' });
+      console.error('Auth middleware error:', error);
+      return res.status(401).json({ error: 'Not authorized, token failed' });
     }
   }
 
-  if (!token) {
-    res.status(401).json({ error: 'Not authorized, no token' });
-  }
+  // No token provided
+  return res.status(401).json({ error: 'Not authorized, no token' });
 };
 
 export { protect };

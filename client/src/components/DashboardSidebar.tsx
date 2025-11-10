@@ -41,13 +41,18 @@ export function DashboardSidebar({ currentPage, onNavigate, onLogout, userEmail 
         {navItems.map((item) => (
           <Button
             key={item.id}
+            type="button"
             variant={currentPage === item.id ? "default" : "ghost"}
             className={`w-full justify-start ${
               currentPage === item.id
                 ? "bg-[#0D9488] text-white hover:bg-[#0D9488]/90"
                 : "text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0D9488]"
             }`}
-            onClick={() => {
+            onClick={(e) => {
+              console.log('🔵 Sidebar button clicked:', item.id);
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('🔵 Calling onNavigate with:', item.id);
               onNavigate(item.id);
               setMobileMenuOpen(false);
             }}
@@ -61,9 +66,12 @@ export function DashboardSidebar({ currentPage, onNavigate, onLogout, userEmail 
       {/* Logout */}
       <div className="p-4 border-t border-[#E2E8F0]">
         <Button
+          type="button"
           variant="ghost"
           className="w-full justify-start text-[#EF4444] hover:bg-[#EF4444]/10 hover:text-[#EF4444]"
-          onClick={() => {
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
             onLogout();
             setMobileMenuOpen(false);
           }}
@@ -80,9 +88,14 @@ export function DashboardSidebar({ currentPage, onNavigate, onLogout, userEmail 
       {/* Mobile Menu Button */}
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <Button
+          type="button"
           variant="outline"
           size="icon"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMobileMenuOpen(!mobileMenuOpen);
+          }}
           className="bg-white shadow-lg border-[#E2E8F0]"
         >
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

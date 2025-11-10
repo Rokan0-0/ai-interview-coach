@@ -19,6 +19,11 @@ model User {
   password  String?   // We will store a hash, not the plain password (optional for OAuth users)
   googleId  String?   @unique 
   provider  String    @default("email")
+  
+  // --- New Fields ---
+  apiCallCount    Int      @default(0)
+  lastApiCallDate DateTime @default(now()) @updatedAt
+
   createdAt DateTime  @default(now())
   answers   Answer[]  // A user can have many answers
 }

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { Card } from "./ui/card";
 import { Progress } from "./ui/progress";
@@ -12,8 +13,59 @@ interface MyAccountProps {
   usageLimit: number;
 }
 
+interface UserData {
+  id: number;
+  email: string;
+  createdAt: string;
+  provider: string;
+  apiCallCount: number;
+  lastApiCallDate: string;
+}
+
 export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLimit }: MyAccountProps) {
-  const usagePercentage = (usageCount / usageLimit) * 100;
+  const [user, setUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAccountData = async () => {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setLoading(false);
+        setError('No authentication token found');
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:5000/api/users/me', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            // Token is invalid, clear it and let ProtectedRoute handle redirect
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+            return;
+          }
+          throw new Error('Failed to fetch user data');
+        }
+
+        const data = await response.json();
+        setUser(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAccountData();
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -21,11 +73,24 @@ export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLi
         currentPage="account"
         onNavigate={onNavigate}
         onLogout={onLogout}
-        userEmail={userEmail}
+        userEmail={user ? user.email : userEmail}
       />
       
       <main className="flex-1 p-6 lg:p-12">
         <div className="max-w-4xl mx-auto">
+          {/* Loading and Error Messages */}
+          {loading && (
+            <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+              <p className="text-blue-600">Loading account data...</p>
+            </div>
+          )}
+          
+          {error && (
+            <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-red-600">Error: {error}</p>
+            </div>
+          )}
+
           {/* Header */}
           <div className="mb-12">
             <h1 className="text-3xl mb-2" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 600 }}>
@@ -60,7 +125,7 @@ export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLi
                   <Mail className="w-5 h-5 text-[#64748B]" />
                   <div className="flex-1">
                     <p className="text-sm text-[#64748B] mb-1">Email Address</p>
-                    <p className="text-[#334155]">{userEmail}</p>
+                    <p className="text-[#334155]">{user ? user.email : '...'}</p>
                   </div>
                 </div>
 
@@ -68,7 +133,13 @@ export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLi
                   <Calendar className="w-5 h-5 text-[#64748B]" />
                   <div className="flex-1">
                     <p className="text-sm text-[#64748B] mb-1">Member Since</p>
-                    <p className="text-[#334155]">November 8, 2025</p>
+                    <p className="text-[#334155]">
+                      {user ? new Date(user.createdAt).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      }) : '...'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -93,8 +164,8 @@ export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLi
               <div className="space-y-4">
                 <div className="flex items-end justify-between">
                   <div>
-                    <div className="text-4xl mb-1" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: usagePercentage >= 80 ? '#EF4444' : '#0D9488' }}>
-                      {usageCount} / {usageLimit}
+                    <div className="text-4xl mb-1" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: (user ? (user.apiCallCount / 5) * 100 : 0) >= 80 ? '#EF4444' : '#0D9488' }}>
+                      {user ? user.apiCallCount : 0} / 5
                     </div>
                     <p className="text-sm text-[#64748B]">
                       Feedback requests used today
@@ -103,26 +174,26 @@ export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLi
                   <Badge 
                     variant="outline" 
                     className={`${
-                      usagePercentage >= 80 
+                      (user ? (user.apiCallCount / 5) * 100 : 0) >= 80 
                         ? 'border-[#EF4444] text-[#EF4444] bg-[#EF4444]/10' 
                         : 'border-[#10B981] text-[#10B981] bg-[#10B981]/10'
                     }`}
                   >
-                    {usageLimit - usageCount} remaining
+                    {5 - (user ? user.apiCallCount : 0)} remaining
                   </Badge>
                 </div>
 
                 <div className="space-y-2">
                   <Progress 
-                    value={usagePercentage} 
+                    value={user ? (user.apiCallCount / 5) * 100 : 0} 
                     className="h-3"
                   />
                   <p className="text-xs text-[#64748B]">
-                    {usagePercentage.toFixed(0)}% of daily limit used
+                    {(user ? (user.apiCallCount / 5) * 100 : 0).toFixed(0)}% of daily limit used
                   </p>
                 </div>
 
-                {usagePercentage >= 80 && (
+                {(user ? (user.apiCallCount / 5) * 100 : 0) >= 80 && (
                   <div className="p-4 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/20">
                     <div className="flex items-start gap-3">
                       <TrendingUp className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />

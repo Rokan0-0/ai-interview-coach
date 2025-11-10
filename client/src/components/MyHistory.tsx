@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -12,42 +13,59 @@ interface MyHistoryProps {
 }
 
 interface HistoryItem {
-  id: string;
-  date: string;
-  jobTrack: string;
-  question: string;
-  rating: number;
-  answer: string;
+  id: number;
+  answerText: string;
+  feedback: string;
+  createdAt: string;
+  question: {
+    text: string;
+  };
 }
 
-const mockHistory: HistoryItem[] = [
-  {
-    id: "1",
-    date: "November 8, 2025",
-    jobTrack: "Software Engineer",
-    question: "Tell me about a time you faced a difficult technical challenge. How did you approach it?",
-    rating: 4,
-    answer: "In my previous role, I encountered a critical performance issue..."
-  },
-  {
-    id: "2",
-    date: "November 7, 2025",
-    jobTrack: "Product Manager",
-    question: "How do you prioritize features when you have competing stakeholder demands?",
-    rating: 5,
-    answer: "I use a framework that combines business value, user impact, and technical effort..."
-  },
-  {
-    id: "3",
-    date: "November 7, 2025",
-    jobTrack: "Software Engineer",
-    question: "Describe your process for code reviews.",
-    rating: 3,
-    answer: "I focus on code quality, maintainability, and team learning..."
-  },
-];
-
 export function MyHistory({ userEmail, onNavigate, onLogout }: MyHistoryProps) {
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setLoading(false);
+        setError('No authentication token found');
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:5000/api/answers/my-history', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            // Token is invalid, clear it and let ProtectedRoute handle redirect
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+            return;
+          }
+          throw new Error('Failed to fetch history');
+        }
+
+        const data = await response.json();
+        setHistory(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, []);
   const getRatingColor = (rating: number) => {
     if (rating >= 4) return "#10B981";
     if (rating === 3) return "#F59E0B";
@@ -90,119 +108,175 @@ export function MyHistory({ userEmail, onNavigate, onLogout }: MyHistoryProps) {
             </p>
           </div>
 
+          {/* Loading and Error Messages */}
+          {loading && (
+            <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+              <p className="text-blue-600">Loading history...</p>
+            </div>
+          )}
+          
+          {error && (
+            <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-red-600">Error: {error}</p>
+            </div>
+          )}
+
           {/* Stats Overview */}
-          <div className="grid sm:grid-cols-3 gap-4 mb-8">
-            <Card className="p-6 border-[#E2E8F0]">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-[#64748B]">Total Sessions</p>
-                <Star className="w-5 h-5 text-[#F59E0B]" fill="#F59E0B" />
-              </div>
-              <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
-                {mockHistory.length}
-              </p>
-            </Card>
+          {!loading && !error && (
+            <div className="grid sm:grid-cols-3 gap-4 mb-8">
+              <Card className="p-6 border-[#E2E8F0]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-[#64748B]">Total Sessions</p>
+                  <Star className="w-5 h-5 text-[#F59E0B]" fill="#F59E0B" />
+                </div>
+                <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
+                  {history.length}
+                </p>
+              </Card>
 
-            <Card className="p-6 border-[#E2E8F0]">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-[#64748B]">Average Rating</p>
-                <Star className="w-5 h-5 text-[#10B981]" fill="#10B981" />
-              </div>
-              <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
-                {(mockHistory.reduce((sum, item) => sum + item.rating, 0) / mockHistory.length).toFixed(1)}
-              </p>
-            </Card>
+              <Card className="p-6 border-[#E2E8F0]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-[#64748B]">Average Rating</p>
+                  <Star className="w-5 h-5 text-[#10B981]" fill="#10B981" />
+                </div>
+                <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
+                  {history.length > 0 
+                    ? (history.reduce((sum, item) => {
+                        try {
+                          const fb = JSON.parse(item.feedback);
+                          return sum + (fb.rating || 0);
+                        } catch {
+                          return sum;
+                        }
+                      }, 0) / history.length).toFixed(1)
+                    : '0.0'}
+                </p>
+              </Card>
 
-            <Card className="p-6 border-[#E2E8F0]">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-[#64748B]">This Week</p>
-                <Calendar className="w-5 h-5 text-[#0D9488]" />
-              </div>
-              <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
-                {mockHistory.length}
-              </p>
-            </Card>
-          </div>
+              <Card className="p-6 border-[#E2E8F0]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-[#64748B]">This Week</p>
+                  <Calendar className="w-5 h-5 text-[#0D9488]" />
+                </div>
+                <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
+                  {history.filter(item => {
+                    const itemDate = new Date(item.createdAt);
+                    const weekAgo = new Date();
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    return itemDate >= weekAgo;
+                  }).length}
+                </p>
+              </Card>
+            </div>
+          )}
 
           {/* History List */}
-          <div className="space-y-4">
-            {mockHistory.map((item, index) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card className="p-6 border-[#E2E8F0] hover:border-[#0D9488]/30 hover:shadow-lg transition-all">
-                  <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-                    {/* Left side - Main content */}
-                    <div className="flex-1 space-y-4">
-                      {/* Header */}
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Badge variant="outline" className="border-[#0D9488] text-[#0D9488]">
-                          <Briefcase className="w-3 h-3 mr-1" />
-                          {item.jobTrack}
-                        </Badge>
-                        <div className="flex items-center gap-2 text-sm text-[#64748B]">
-                          <Calendar className="w-4 h-4" />
-                          {item.date}
-                        </div>
-                      </div>
+          {!loading && !error && (
+            <div className="space-y-4">
+              {history.map((item, index) => {
+                try {
+                  const fb = JSON.parse(item.feedback);
+                  const rating = fb.rating || 0;
+                  
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <Card className="p-6 border-[#E2E8F0] hover:border-[#0D9488]/30 hover:shadow-lg transition-all">
+                        <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+                          {/* Left side - Main content */}
+                          <div className="flex-1 space-y-4">
+                            {/* Header */}
+                            <div className="flex flex-wrap items-center gap-3">
+                              <div className="flex items-center gap-2 text-sm text-[#64748B]">
+                                <Calendar className="w-4 h-4" />
+                                {new Date(item.createdAt).toLocaleDateString('en-US', { 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                })}
+                              </div>
+                            </div>
 
-                      {/* Question */}
-                      <div>
-                        <h3 className="text-lg mb-2 text-[#0F172A]" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}>
-                          {item.question}
-                        </h3>
-                        <p className="text-[#64748B] line-clamp-2">
-                          {item.answer}
-                        </p>
-                      </div>
+                            {/* Question */}
+                            <div>
+                              <h3 className="text-lg mb-2 text-[#0F172A]" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 500 }}>
+                                {item.question.text}
+                              </h3>
+                              <p className="text-[#64748B] line-clamp-2">
+                                {item.answerText}
+                              </p>
+                            </div>
 
-                      {/* Rating */}
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Star
-                                key={star}
-                                className="w-4 h-4"
-                                fill={star <= item.rating ? getRatingColor(item.rating) : "none"}
-                                stroke={star <= item.rating ? getRatingColor(item.rating) : "#E2E8F0"}
-                              />
-                            ))}
+                            {/* Rating */}
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <div className="flex gap-1">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className="w-4 h-4"
+                                      fill={star <= rating ? getRatingColor(rating) : "none"}
+                                      stroke={star <= rating ? getRatingColor(rating) : "#E2E8F0"}
+                                    />
+                                  ))}
+                                </div>
+                                <span 
+                                  className="text-sm px-2 py-1 rounded-full"
+                                  style={{ 
+                                    backgroundColor: `${getRatingColor(rating)}15`, 
+                                    color: getRatingColor(rating) 
+                                  }}
+                                >
+                                  {rating} / 5 - {getRatingText(rating)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Feedback */}
+                            {fb.feedback && Array.isArray(fb.feedback) && (
+                              <div className="pt-4 border-t border-[#E2E8F0]">
+                                <h4 className="text-sm font-semibold text-[#334155] mb-2">Feedback:</h4>
+                                <ul className="space-y-1">
+                                  {fb.feedback.map((bullet: string, idx: number) => (
+                                    <li key={idx} className="text-sm text-[#64748B] flex items-start gap-2">
+                                      <span className="text-[#0D9488] mt-1">•</span>
+                                      <span>{bullet}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                           </div>
-                          <span 
-                            className="text-sm px-2 py-1 rounded-full"
-                            style={{ 
-                              backgroundColor: `${getRatingColor(item.rating)}15`, 
-                              color: getRatingColor(item.rating) 
-                            }}
-                          >
-                            {getRatingText(item.rating)}
-                          </span>
+
+                          {/* Right side - Actions */}
+                          <div className="flex lg:flex-col gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-[#0D9488] text-[#0D9488] hover:bg-[#0D9488]/5"
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              View Details
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      </Card>
+                    </motion.div>
+                  );
+                } catch (parseError) {
+                  console.error('Error parsing feedback for item:', item.id, parseError);
+                  return null;
+                }
+              })}
+            </div>
+          )}
 
-                    {/* Right side - Actions */}
-                    <div className="flex lg:flex-col gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-[#0D9488] text-[#0D9488] hover:bg-[#0D9488]/5"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Details
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Empty State (if needed) */}
-          {mockHistory.length === 0 && (
+          {/* Empty State */}
+          {!loading && !error && history.length === 0 && (
             <Card className="p-12 border-[#E2E8F0] text-center">
               <div className="max-w-md mx-auto">
                 <div className="w-20 h-20 rounded-full bg-[#F8FAFC] flex items-center justify-center mx-auto mb-6">

@@ -54,14 +54,15 @@ export function Dashboard({ userEmail, onNavigate, onLogout, onSelectJobTrack }:
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      // The ProtectedRoute component now handles this redirection.
-      return;
-    }
-
     const fetchTracks = async () => {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setLoading(false);
+        setError('No authentication token found');
+        return;
+      }
+
       try {
         const response = await fetch('http://localhost:5000/api/tracks', {
           headers: {
@@ -70,6 +71,11 @@ export function Dashboard({ userEmail, onNavigate, onLogout, onSelectJobTrack }:
         });
 
         if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+            return;
+          }
           throw new Error('Failed to fetch tracks');
         }
 

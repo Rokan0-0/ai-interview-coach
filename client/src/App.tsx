@@ -11,6 +11,20 @@ import { Toaster } from "./components/ui/sonner";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 export default function App() {
+  // Debug: Check if page is reloading
+  useEffect(() => {
+    console.log('🔵 App component mounted/re-rendered');
+    const reloadCheck = sessionStorage.getItem('app-reload-check');
+    if (reloadCheck) {
+      console.warn('⚠️ PAGE RELOADED - This indicates a full page refresh happened');
+      // Clear it so we only warn once per actual reload
+      sessionStorage.removeItem('app-reload-check');
+    } else {
+      sessionStorage.setItem('app-reload-check', 'true');
+      console.log('✅ App loaded normally (not a reload)');
+    }
+  }, []);
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [user, setUser] = useState<{ email: string; isAdmin: boolean } | null>(null);
   const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
@@ -20,33 +34,60 @@ export default function App() {
   const [loading, setLoading] = useState(true); // Add loading state
   const navigate = useNavigate();
 
-  const handleAuthenticated = useCallback((email: string) => {
+  const handleAuthenticated = useCallback((email: string, shouldNavigate: boolean = true) => {
     // Mock: admin@example.com gets admin access
     const isAdmin = email === "admin@example.com";
     setUser({ email, isAdmin });
-    navigate(isAdmin ? "/admin" : "/dashboard");
+    if (shouldNavigate) {
+      navigate(isAdmin ? "/admin" : "/dashboard");
+    }
   }, [navigate]);
 
   useEffect(() => {
+    console.log('🔵 App useEffect - verifyToken running');
     const verifyToken = async () => {
       const token = localStorage.getItem('token');
+      console.log('🔵 Token exists:', !!token);
       if (token) {
         try {
           // In a real app, you'd verify the token with the backend.
           // For now, we'll decode it to get the user's email.
           const payload = JSON.parse(atob(token.split('.')[1]));
-          handleAuthenticated(payload.email);
+          console.log('🔵 Token payload:', payload);
+          // Only navigate if we're not already on a protected route
+          const currentPath = window.location.pathname;
+          const isOnProtectedRoute = currentPath.startsWith('/dashboard') || 
+                                     currentPath.startsWith('/account') || 
+                                     currentPath.startsWith('/history') || 
+                                     currentPath.startsWith('/practice') || 
+                                     currentPath.startsWith('/admin');
+          handleAuthenticated(payload.email, !isOnProtectedRoute);
         } catch (error) {
-          console.error("Failed to decode token:", error);
+          console.error("❌ Failed to decode token:", error);
           localStorage.removeItem('token');
           setUser(null);
         }
       }
       setLoading(false);
+      console.log('🔵 Loading set to false');
     };
 
     verifyToken();
-  }, [handleAuthenticated]);
+    // Only run once on mount, not on every handleAuthenticated change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Catch any unhandled errors
+  useEffect(() => {
+    const errorHandler = (event: ErrorEvent) => {
+      console.error('❌ Unhandled error:', event.error);
+      console.error('❌ Error message:', event.message);
+      console.error('❌ Error stack:', event.error?.stack);
+    };
+
+    window.addEventListener('error', errorHandler);
+    return () => window.removeEventListener('error', errorHandler);
+  }, []);
 
   // Handle Google OAuth callback
   useEffect(() => {
@@ -61,8 +102,8 @@ export default function App() {
         // Decode the token to get user email
         const payload = JSON.parse(atob(token.split('.')[1]));
         
-        // Authenticate the user
-        handleAuthenticated(payload.email);
+        // Authenticate the user (navigate to dashboard)
+        handleAuthenticated(payload.email, true);
         
         // Clean up the URL by removing the token parameter
         window.history.replaceState({}, document.title, '/auth/callback');
@@ -71,7 +112,9 @@ export default function App() {
         navigate('/');
       }
     }
-  }, [handleAuthenticated, navigate]);
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -82,16 +125,27 @@ export default function App() {
   };
 
   const handleSelectJobTrack = (trackId: number, trackName: string) => {
+    console.log('🔵 handleSelectJobTrack called:', trackId, trackName);
     setSelectedTrackId(trackId);
     setSelectedTrackName(trackName);
+    console.log('🔵 Navigating to /practice');
     navigate("/practice");
   };
 
   const handleNavigate = (path: string) => {
+    console.log('🔵 handleNavigate called with path:', path);
+    console.log('🔵 Current location:', window.location.pathname);
+    
     if (path === "dashboard") {
       setSelectedTrackId(null);
     }
-    navigate(`/${path}`);
+    
+    try {
+      navigate(`/${path}`);
+      console.log('✅ Navigation successful to:', `/${path}`);
+    } catch (error) {
+      console.error('❌ Navigation error:', error);
+    }
   };
 
   const handleUsageLimitUpdate = (increment: number) => {

@@ -25,7 +25,10 @@ const app = express();
 const PORT = 5000;
 
 // This tells Express to allow requests from other origins
-app.use(cors()); 
+app.use(cors({
+  origin: 'http://localhost:5173', // Your Vite dev server
+  credentials: true
+})); 
 
 // This tells Express to automatically parse JSON in request bodies
 app.use(express.json());
@@ -189,6 +192,35 @@ app.get('/api/protected-test', protect, (req, res) => {
 
 // --- PROTECTED API ROUTES ---
 
+// --- GET CURRENT USER INFO ---
+app.get('/api/users/me', protect, async (req, res) => {
+  try {
+    // Get the user's ID from the protect middleware
+    const userId = req.user.id;
+    // Fetch the full user data from the database
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      // Select only the data we need to send
+      select: {
+        id: true,
+        email: true,
+        createdAt: true,
+        provider: true,
+        apiCallCount: true,
+        lastApiCallDate: true
+      }
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    // Send the user data
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // --- GET ALL JOB TRACKS ---
 app.get('/api/tracks', protect, async (req, res) => {
   try {
@@ -230,6 +262,23 @@ app.post('/api/answer', protect, async (req, res) => {
   try {
     const { questionId, answerText } = req.body;
     const userId = req.user.id; // From our 'protect' middleware
+
+    // Get the full user from the database
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+
+    // Rate limiting logic
+    const today = new Date().setHours(0, 0, 0, 0);
+    const lastCall = user.lastApiCallDate.setHours(0, 0, 0, 0);
+    let currentCount = user.apiCallCount;
+    // 1. Check if it's a new day
+    if (today > lastCall) {
+      currentCount = 0; // Reset the count
+    }
+    // 2. Check the limit
+    if (currentCount >= 5) {
+      // User is over their limit
+      return res.status(429).json({ error: 'You have exceeded your daily limit of 5 feedback requests.' });
+    }
 
     // 1. Validate input
     if (!questionId || !answerText) {
@@ -292,6 +341,15 @@ app.post('/api/answer', protect, async (req, res) => {
     const cleanJsonString = match[0]; // This is just the "{...}" part
     // ------------------------------------
 
+    // Update user's count and last call date
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        apiCallCount: currentCount + 1,
+        lastApiCallDate: new Date()
+      }
+    });
+
     // 5. Save the answer and the AI's feedback to *our* database
     await prisma.answer.create({
       data: {
@@ -308,5 +366,28 @@ app.post('/api/answer', protect, async (req, res) => {
   } catch (error) {
     console.error('AI feedback error:', error);
     res.status(500).json({ error: 'Failed to get AI feedback.' });
+  }
+});
+
+// --- GET USER'S ANSWER HISTORY ---
+app.get('/api/answers/my-history', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const answers = await prisma.answer.findMany({
+      where: { userId: userId },
+      // Also include the original question text
+      include: {
+        question: {
+          select: { text: true }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc' // Show most recent first
+      }
+    });
+    res.status(200).json(answers);
+  } catch (error) {
+    console.error('Get history error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });

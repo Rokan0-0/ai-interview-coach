@@ -19,7 +19,13 @@ export function JobTrackCard({ title, icon: Icon, description, gradient, onClick
     >
       <Card 
         className="p-6 cursor-pointer border-[#E2E8F0] hover:border-[#0D9488]/30 hover:shadow-xl transition-all group overflow-hidden relative"
-        onClick={onClick}
+        onClick={(e) => {
+          console.log('🔵 JobTrackCard clicked:', title);
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🔵 Calling onClick handler');
+          onClick();
+        }}
       >
         {/* Background decoration */}
         <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${gradient} opacity-5 rounded-bl-full transform translate-x-12 -translate-y-12 group-hover:scale-150 transition-transform duration-500`} />
