@@ -24,7 +24,7 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
 
   const handleGoogleSignIn = () => {
     // Redirect to the server's Google OAuth endpoint
-    window.location.href = 'import.meta.env.VITE_API_URL/api/auth/google';
+    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`;
   };
 
   const handleEmailAuth = async (e?: React.FormEvent) => {
@@ -48,7 +48,7 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
     try {
       if (isRegister) {
         // Step 1: Register
-        const registerResponse = await fetch('import.meta.env.VITE_API_URL/api/register', {
+        const registerResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/register`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -62,7 +62,7 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
         }
 
         // Step 2: Auto-Login after successful registration
-        const loginResponse = await fetch('import.meta.env.VITE_API_URL/api/login', {
+        const loginResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -82,7 +82,7 @@ export function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
         onClose();
       } else {
         // Login
-        const response = await fetch('import.meta.env.VITE_API_URL/api/login', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

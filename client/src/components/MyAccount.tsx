@@ -38,7 +38,7 @@ export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLi
       }
 
       try {
-        const response = await fetch('import.meta.env.VITE_API_URL/api/users/me', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users/me`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`

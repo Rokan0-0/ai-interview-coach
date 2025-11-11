@@ -37,7 +37,7 @@ export default function App() {
 
   const fetchUserData = useCallback(async (token: string) => {
     try {
-      const response = await fetch('import.meta.env.VITE_API_URL/api/users/me', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

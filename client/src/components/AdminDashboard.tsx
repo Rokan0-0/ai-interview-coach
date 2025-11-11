@@ -69,7 +69,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
       }
 
       try {
-        const response = await fetch('import.meta.env.VITE_API_URL/api/tracks', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tracks`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -108,7 +108,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
       }
 
       try {
-        const response = await fetch('import.meta.env.VITE_API_URL/api/admin/questions', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/questions`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -152,7 +152,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
       }
 
       try {
-        const response = await fetch('import.meta.env.VITE_API_URL/api/admin/users', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -203,7 +203,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
     }
 
     try {
-      const response = await fetch(`import.meta.env.VITE_API_URL/api/admin/questions/${questionId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/questions/${questionId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -241,7 +241,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
     }
 
     try {
-      const response = await fetch('import.meta.env.VITE_API_URL/api/admin/tracks', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/tracks`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -295,7 +295,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
     }
 
     try {
-      const response = await fetch(`import.meta.env.VITE_API_URL/api/admin/tracks/${trackId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/tracks/${trackId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -335,7 +335,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
     }
 
     try {
-      const response = await fetch('import.meta.env.VITE_API_URL/api/admin/questions', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/questions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

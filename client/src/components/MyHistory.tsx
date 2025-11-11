@@ -38,7 +38,7 @@ export function MyHistory({ userEmail, onNavigate, onLogout }: MyHistoryProps) {
       }
 
       try {
-        const response = await fetch('import.meta.env.VITE_API_URL/api/answers/my-history', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/answers/my-history`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`
