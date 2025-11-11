@@ -30,7 +30,6 @@ app.use(cors({
   origin: 'http://localhost:5173', // Your Vite dev server
   credentials: true
 })); 
-
 // This tells Express to automatically parse JSON in request bodies
 app.use(express.json());
 
@@ -208,7 +207,8 @@ app.get('/api/users/me', protect, async (req, res) => {
         createdAt: true,
         provider: true,
         apiCallCount: true,
-        lastApiCallDate: true
+        lastApiCallDate: true,
+        role: true
       }
     });
     if (!user) {
@@ -260,44 +260,64 @@ app.get('/api/tracks/:trackId/questions', protect, async (req, res) => {
 
 // --- SUBMIT ANSWER & GET AI FEEDBACK ---
 app.post('/api/answer', protect, async (req, res) => {
+  // Validate input FIRST (before any database calls or rate limiting)
+  const { questionId, answerText } = req.body;
+  const userId = req.user.id; // From our 'protect' middleware
+
+  if (!questionId || !answerText) {
+    return res.status(400).json({ error: 'Question ID and answer text are required.' });
+  }
+
+  // Validate answerText is not just whitespace
+  if (!answerText.trim()) {
+    return res.status(400).json({ error: 'Answer text cannot be empty.' });
+  }
+
   try {
-    const { questionId, answerText } = req.body;
-    const userId = req.user.id; // From our 'protect' middleware
+    // Get the full user from the database with proper error handling
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      select: {
+        id: true,
+        apiCallCount: true,
+        lastApiCallDate: true
+      }
+    });
 
-    // Get the full user from the database
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
 
-    // Rate limiting logic
-    const today = new Date().setHours(0, 0, 0, 0);
-    const lastCall = user.lastApiCallDate.setHours(0, 0, 0, 0);
+    // Rate limiting logic - FIXED: Prevent date mutation
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lastCallDate = new Date(user.lastApiCallDate);
+    lastCallDate.setHours(0, 0, 0, 0);
+    
     let currentCount = user.apiCallCount;
-    // 1. Check if it's a new day
-    if (today > lastCall) {
-      currentCount = 0; // Reset the count
+    // Check if it's a new day
+    if (today.getTime() > lastCallDate.getTime()) {
+      currentCount = 0; // Reset the count for new day
     }
-    // 2. Check the limit
-    if (currentCount >= 5) {
-      // User is over their limit
-      return res.status(429).json({ error: 'You have exceeded your daily limit of 5 feedback requests.' });
-    }
-
-    // 1. Validate input
-    if (!questionId || !answerText) {
-      return res.status(400).json({ error: 'Question ID and answer text are required.' });
+    
+    // Check the limit BEFORE making any AI calls
+    if (currentCount >= 20) {
+      return res.status(429).json({ 
+        error: 'You have exceeded your daily limit of 20 feedback requests.' 
+      });
     }
 
-    // 2. Get the original question text from our DB
+    // Get the original question text from our DB
     const question = await prisma.question.findUnique({
-      where: { id: questionId },
-      include: { jobTrack: true }, // Include the job track info
+      where: { id: parseInt(questionId) },
+      include: { jobTrack: true },
     });
 
     if (!question) {
       return res.status(404).json({ error: 'Question not found.' });
     }
 
-    // 3. --- THE AI PROMPT ---
-    // This is the prompt we designed, now with our real data
+    // --- THE AI PROMPT ---
     const prompt = `You are an expert AI Interview Coach named 'Mentor'. You are role-playing as a senior hiring manager for a '${question.jobTrack.name}' position. You are professional, constructive, and aim to help the candidate improve.
 
     The interview question was:
@@ -321,52 +341,122 @@ app.post('/api/answer', protect, async (req, res) => {
     
     Analyze the answer for structure, clarity, and impact. Be specific. Always include at least one "what to improve" bullet point. Keep feedback concise.`;
 
-    // 4. Call the AI
+    // Call the AI - IMPORTANT: Only charge user if AI call succeeds
     if (!aiModel) {
-      throw new Error('AI model not initialized yet');
+      return res.status(500).json({ error: 'AI service is not available.' });
     }
-    const result = await aiModel.generateContent(prompt);
-    const response = await result.response;
-    const aiResponseText = response.text(); // Renamed for clarity
 
-    // --- NEW: Clean the AI's response ---
-    // Use a regular expression to find the JSON block
-    const match = aiResponseText.match(/\{[\s\S]*\}/);
-
-    if (!match) {
-      // If the AI didn't return JSON at all
-      console.error('AI response was not valid JSON:', aiResponseText);
-      return res.status(500).json({ error: 'AI did not return valid feedback.' });
-    }
+    let aiResponseText;
+    let cleanJsonString;
     
-    const cleanJsonString = match[0]; // This is just the "{...}" part
-    // ------------------------------------
+    try {
+      const result = await aiModel.generateContent(prompt);
+      const response = await result.response;
+      aiResponseText = response.text();
 
-    // Update user's count and last call date
-    await prisma.user.update({
-      where: { id: req.user.id },
-      data: {
-        apiCallCount: currentCount + 1,
-        lastApiCallDate: new Date()
+      // Clean the AI's response
+      const match = aiResponseText.match(/\{[\s\S]*\}/);
+
+      if (!match) {
+        console.error('AI response was not valid JSON:', aiResponseText);
+        // AI call succeeded but returned invalid format - DON'T charge user
+        return res.status(500).json({ error: 'AI did not return valid feedback.' });
       }
-    });
+      
+      cleanJsonString = match[0];
+      
+      // Validate the JSON can be parsed
+      try {
+        JSON.parse(cleanJsonString);
+      } catch (parseError) {
+        console.error('AI response JSON parse error:', parseError);
+        // Invalid JSON - DON'T charge user
+        return res.status(500).json({ error: 'AI returned invalid JSON format.' });
+      }
+    } catch (aiError) {
+      // AI call failed - DON'T charge user for failed requests
+      console.error('AI service error:', aiError);
+      return res.status(500).json({ 
+        error: 'Failed to get AI feedback. Please try again later.' 
+      });
+    }
 
-    // 5. Save the answer and the AI's feedback to *our* database
-    await prisma.answer.create({
-      data: {
-        answerText: answerText,
-        feedback: cleanJsonString, // <-- Save the CLEAN JSON string
-        userId: userId,
-        questionId: questionId,
-      },
-    });
+    // IMPORTANT: Only update user count and save answer if AI call succeeded
+    // Use a transaction to ensure atomicity and prevent race conditions
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Re-check rate limit inside transaction to prevent race conditions
+        const currentUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { apiCallCount: true, lastApiCallDate: true }
+        });
 
-    // 6. Send the AI feedback (as a JSON object) back to the client
-    res.status(200).json(JSON.parse(cleanJsonString));
+        if (!currentUser) {
+          throw new Error('User not found during transaction');
+        }
+
+        // Recalculate count with latest data
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        const lastCall = new Date(currentUser.lastApiCallDate);
+        lastCall.setHours(0, 0, 0, 0);
+        
+        let finalCount = currentUser.apiCallCount;
+        if (now.getTime() > lastCall.getTime()) {
+          finalCount = 0;
+        }
+
+        // Double-check limit (race condition protection)
+        if (finalCount >= 20) {
+          throw new Error('Rate limit exceeded');
+        }
+
+        // Update user's count and last call date atomically
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            apiCallCount: finalCount + 1,
+            lastApiCallDate: new Date()
+          }
+        });
+
+        // Save the answer and the AI's feedback
+        await tx.answer.create({
+          data: {
+            answerText: answerText.trim(),
+            feedback: cleanJsonString,
+            userId: userId,
+            questionId: parseInt(questionId),
+          },
+        });
+      });
+
+      // Success - send the AI feedback back to the client
+      res.status(200).json(JSON.parse(cleanJsonString));
+
+    } catch (dbError) {
+      // Handle transaction errors
+      if (dbError.message === 'Rate limit exceeded') {
+        return res.status(429).json({ 
+          error: 'You have exceeded your daily limit of 20 feedback requests.' 
+        });
+      }
+      if (dbError.message === 'User not found during transaction') {
+        return res.status(404).json({ error: 'User not found.' });
+      }
+      
+      console.error('Database transaction error:', dbError);
+      return res.status(500).json({ error: 'Failed to save your answer. Please try again.' });
+    }
 
   } catch (error) {
-    console.error('AI feedback error:', error);
-    res.status(500).json({ error: 'Failed to get AI feedback.' });
+    // Handle any unexpected errors
+    console.error('Unexpected error in /api/answer:', error);
+    
+    // Don't expose internal error details to client
+    return res.status(500).json({ 
+      error: 'An unexpected error occurred. Please try again later.' 
+    });
   }
 });
 
@@ -414,6 +504,9 @@ app.post('/api/admin/questions', protect, adminProtect, async (req, res) => {
       data: {
         text: text,
         jobTrackId: parseInt(jobTrackId)
+      },
+      include: {
+        jobTrack: true
       }
     });
     res.status(201).json(newQuestion);
@@ -432,5 +525,36 @@ app.delete('/api/admin/questions/:id', protect, adminProtect, async (req, res) =
     res.status(204).send(); // No content
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete question.' });
+  }
+});
+
+// Create a new Job Track
+app.post('/api/admin/tracks', protect, adminProtect, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const newTrack = await prisma.jobTrack.create({
+      data: { name }
+    });
+    res.status(201).json(newTrack);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create job track.' });
+  }
+});
+
+// Delete a Job Track
+app.delete('/api/admin/tracks/:id', protect, adminProtect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // We must delete all questions in this track first due to our schema
+    await prisma.question.deleteMany({
+      where: { jobTrackId: parseInt(id) }
+    });
+    // Now we can delete the track
+    await prisma.jobTrack.delete({
+      where: { id: parseInt(id) }
+    });
+    res.status(204).send(); // No content
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete job track.' });
   }
 });

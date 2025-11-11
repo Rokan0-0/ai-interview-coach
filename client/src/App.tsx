@@ -30,18 +30,55 @@ export default function App() {
   const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
   const [selectedTrackName, setSelectedTrackName] = useState<string>("");
   const [usageCount, setUsageCount] = useState(3); // Mock: 3 out of 5 used
-  const [usageLimit] = useState(5);
+  const [usageLimit] = useState(20);
   const [loading, setLoading] = useState(true); // Add loading state
   const navigate = useNavigate();
 
-  const handleAuthenticated = useCallback((email: string, shouldNavigate: boolean = true) => {
-    // Mock: admin@example.com gets admin access
-    const isAdmin = email === "admin@example.com";
-    setUser({ email, isAdmin });
-    if (shouldNavigate) {
-      navigate(isAdmin ? "/admin" : "/dashboard");
+  const fetchUserData = useCallback(async (token: string) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/users/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          setUser(null);
+          return null;
+        }
+        throw new Error('Failed to fetch user data');
+      }
+
+      const userData = await response.json();
+      const isAdmin = userData.role === 'ADMIN';
+      return { email: userData.email, isAdmin };
+    } catch (error) {
+      console.error("❌ Failed to fetch user data:", error);
+      localStorage.removeItem('token');
+      return null;
     }
-  }, [navigate]);
+  }, []);
+
+  const handleAuthenticated = useCallback(async (email: string, shouldNavigate: boolean = true) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      const userData = await fetchUserData(token);
+      if (userData) {
+        setUser(userData);
+        if (shouldNavigate) {
+          navigate(userData.isAdmin ? "/admin" : "/dashboard");
+        }
+      }
+    } else {
+      // Fallback: if no token, just set email (shouldn't happen in normal flow)
+      setUser({ email, isAdmin: false });
+      if (shouldNavigate) {
+        navigate("/dashboard");
+      }
+    }
+  }, [navigate, fetchUserData]);
 
   useEffect(() => {
     console.log('🔵 App useEffect - verifyToken running');
@@ -50,20 +87,23 @@ export default function App() {
       console.log('🔵 Token exists:', !!token);
       if (token) {
         try {
-          // In a real app, you'd verify the token with the backend.
-          // For now, we'll decode it to get the user's email.
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          console.log('🔵 Token payload:', payload);
-          // Only navigate if we're not already on a protected route
-          const currentPath = window.location.pathname;
-          const isOnProtectedRoute = currentPath.startsWith('/dashboard') || 
-                                     currentPath.startsWith('/account') || 
-                                     currentPath.startsWith('/history') || 
-                                     currentPath.startsWith('/practice') || 
-                                     currentPath.startsWith('/admin');
-          handleAuthenticated(payload.email, !isOnProtectedRoute);
+          // Fetch user data from the API to get the role
+          const userData = await fetchUserData(token);
+          if (userData) {
+            setUser(userData);
+            // Only navigate if we're not already on a protected route
+            const currentPath = window.location.pathname;
+            const isOnProtectedRoute = currentPath.startsWith('/dashboard') || 
+                                       currentPath.startsWith('/account') || 
+                                       currentPath.startsWith('/history') || 
+                                       currentPath.startsWith('/practice') || 
+                                       currentPath.startsWith('/admin');
+            if (!isOnProtectedRoute) {
+              navigate(userData.isAdmin ? "/admin" : "/dashboard");
+            }
+          }
         } catch (error) {
-          console.error("❌ Failed to decode token:", error);
+          console.error("❌ Failed to verify token:", error);
           localStorage.removeItem('token');
           setUser(null);
         }
@@ -99,10 +139,10 @@ export default function App() {
         // Save the token
         localStorage.setItem('token', token);
         
-        // Decode the token to get user email
+        // Decode the token to get user email (for fallback)
         const payload = JSON.parse(atob(token.split('.')[1]));
         
-        // Authenticate the user (navigate to dashboard)
+        // Authenticate the user (will fetch role from API)
         handleAuthenticated(payload.email, true);
         
         // Clean up the URL by removing the token parameter

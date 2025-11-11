@@ -64,10 +64,19 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
         }
 
         const data = await response.json();
+        
+        // Security: Check if questions array is empty
+        if (!Array.isArray(data) || data.length === 0) {
+          setError('No questions available for this track.');
+          setQuestions([]);
+          return;
+        }
+        
         setQuestions(data);
       } catch (err) {
         console.error('Error fetching questions:', err);
         setError('Failed to load questions');
+        setQuestions([]); // Ensure questions is empty array on error
       } finally {
         setIsLoading(false);
       }
@@ -76,10 +85,16 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
     fetchQuestions();
   }, [trackId]);
 
-  const currentQuestion = questions[currentQuestionIndex];
+  // Security: Check if currentQuestion exists before accessing it
+  const currentQuestion = questions.length > 0 && currentQuestionIndex < questions.length 
+    ? questions[currentQuestionIndex] 
+    : null;
 
   const handleSubmitAnswer = async () => {
-    if (!answer.trim() || !currentQuestion) return;
+    // Security: Prevent double submission and validate inputs
+    if (!answer.trim() || !currentQuestion || isSubmitting) {
+      return;
+    }
 
     setIsSubmitting(true);
     setFeedback(null);
@@ -101,7 +116,7 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
         },
         body: JSON.stringify({
           questionId: currentQuestion.id,
-          answerText: answer
+          answerText: answer.trim()
         })
       });
 
@@ -109,6 +124,11 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
         if (response.status === 401) {
           localStorage.removeItem('token');
           window.location.href = '/login';
+          return;
+        }
+        if (response.status === 429) {
+          const errorData = await response.json().catch(() => ({ error: 'Rate limit exceeded' }));
+          setError(errorData.error || 'You have exceeded your daily limit. Please try again tomorrow.');
           return;
         }
         const errorData = await response.json().catch(() => ({ error: 'Failed to submit answer' }));
@@ -128,8 +148,15 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
   };
 
   const handleNextQuestion = () => {
+    // Security: Check if questions array is valid
+    if (questions.length === 0) {
+      setError('No questions available');
+      return;
+    }
+
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
+      // Clear all state when moving to next question
       setAnswer("");
       setFeedback(null);
       setError(null);
@@ -142,8 +169,10 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
   };
 
   const handleTryAgain = () => {
+    // Clear answer and feedback, but keep error state
     setAnswer("");
     setFeedback(null);
+    // Note: We keep error state so user knows if there was an issue
   };
 
   const getRatingColor = (rating: number) => {
@@ -193,7 +222,9 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
               Interview Practice
             </h1>
             <p className="text-[#64748B]">
-              Question {currentQuestionIndex + 1} of {questions.length}
+              {questions.length > 0 
+                ? `Question ${currentQuestionIndex + 1} of ${questions.length}`
+                : 'No questions available'}
             </p>
           </div>
 

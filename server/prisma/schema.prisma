@@ -41,6 +41,8 @@ model Question {
   jobTrack      JobTrack  @relation(fields: [jobTrackId], references: [id])
   jobTrackId    Int
   answers       Answer[]  // A question can be answered many times
+
+  @@unique([text, jobTrackId])
 }
 
 model Answer {

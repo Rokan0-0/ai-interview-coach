@@ -164,8 +164,8 @@ export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLi
               <div className="space-y-4">
                 <div className="flex items-end justify-between">
                   <div>
-                    <div className="text-4xl mb-1" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: (user ? (user.apiCallCount / 5) * 100 : 0) >= 80 ? '#EF4444' : '#0D9488' }}>
-                      {user ? user.apiCallCount : 0} / 5
+                    <div className="text-4xl mb-1" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: (user ? (user.apiCallCount / 20) * 100 : 0) >= 80 ? '#EF4444' : '#0D9488' }}>
+                      {user ? user.apiCallCount : 0} / 20
                     </div>
                     <p className="text-sm text-[#64748B]">
                       Feedback requests used today
@@ -174,26 +174,26 @@ export function MyAccount({ userEmail, onNavigate, onLogout, usageCount, usageLi
                   <Badge 
                     variant="outline" 
                     className={`${
-                      (user ? (user.apiCallCount / 5) * 100 : 0) >= 80 
+                      (user ? (user.apiCallCount / 20) * 100 : 0) >= 80 
                         ? 'border-[#EF4444] text-[#EF4444] bg-[#EF4444]/10' 
                         : 'border-[#10B981] text-[#10B981] bg-[#10B981]/10'
                     }`}
                   >
-                    {5 - (user ? user.apiCallCount : 0)} remaining
+                    {20 - (user ? user.apiCallCount : 0)} remaining
                   </Badge>
                 </div>
 
                 <div className="space-y-2">
                   <Progress 
-                    value={user ? (user.apiCallCount / 5) * 100 : 0} 
+                    value={user ? (user.apiCallCount / 20) * 100 : 0} 
                     className="h-3"
                   />
                   <p className="text-xs text-[#64748B]">
-                    {(user ? (user.apiCallCount / 5) * 100 : 0).toFixed(0)}% of daily limit used
+                    {(user ? (user.apiCallCount / 20) * 100 : 0).toFixed(0)}% of daily limit used
                   </p>
                 </div>
 
-                {(user ? (user.apiCallCount / 5) * 100 : 0) >= 80 && (
+                {(user ? (user.apiCallCount / 20) * 100 : 0) >= 80 && (
                   <div className="p-4 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/20">
                     <div className="flex items-start gap-3">
                       <TrendingUp className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
