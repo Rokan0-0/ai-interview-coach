@@ -176,7 +176,9 @@ app.get(
     );
 
     // --- 4. Redirect user back to the *frontend* with the token ---
-    res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
+    // We'll add CLIENT_URL to our environment variables
+const clientURL = process.env.CLIENT_URL || 'http://localhost:5173';
+res.redirect(`${clientURL}/auth/callback?token=${token}`);
   }
 );
 
@@ -556,5 +558,29 @@ app.delete('/api/admin/tracks/:id', protect, adminProtect, async (req, res) => {
     res.status(204).send(); // No content
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete job track.' });
+  }
+});
+
+// Get all users (admin only)
+app.get('/api/admin/users', protect, adminProtect, async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        createdAt: true,
+        provider: true,
+        apiCallCount: true,
+        role: true,
+        lastApiCallDate: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    res.status(200).json(users);
+  } catch (error) {
+    console.error('Failed to fetch users:', error);
+    res.status(500).json({ error: 'Failed to fetch users.' });
   }
 });

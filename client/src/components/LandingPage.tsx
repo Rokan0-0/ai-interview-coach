@@ -58,7 +58,7 @@ export function LandingPage({ onSignInClick }: LandingPageProps) {
             </div>
             
             <p className="text-sm text-[#64748B] mt-6">
-              Start for free with 5 feedback requests per day. No credit card required.
+              Start for free with 20 feedback requests per day. No credit card required.
             </p>
           </motion.div>
         </div>
@@ -211,7 +211,7 @@ export function LandingPage({ onSignInClick }: LandingPageProps) {
               </p>
               
               <div className="text-5xl mb-6" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0D9488' }}>
-                5 feedbacks/day
+                20 feedbacks/day
               </div>
               
               <p className="text-[#64748B] mb-8 max-w-md mx-auto">

@@ -21,11 +21,13 @@ interface AdminDashboardProps {
 }
 
 interface User {
-  id: string;
+  id: number;
   email: string;
-  joinDate: string;
+  createdAt: string;
   apiCallCount: number;
   role: string;
+  provider: string;
+  lastApiCallDate: string;
 }
 
 interface Question {
@@ -42,13 +44,6 @@ interface JobTrack {
   name: string;
 }
 
-const mockUsers: User[] = [
-  { id: "1", email: "user1@example.com", joinDate: "2025-11-01", apiCallCount: 45, role: "user" },
-  { id: "2", email: "user2@example.com", joinDate: "2025-11-03", apiCallCount: 23, role: "user" },
-  { id: "3", email: "admin@example.com", joinDate: "2025-10-15", apiCallCount: 120, role: "admin" },
-  { id: "4", email: "user3@example.com", joinDate: "2025-11-05", apiCallCount: 12, role: "user" },
-];
-
 export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboardProps) {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -61,6 +56,8 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
   const [selectedJobTrack, setSelectedJobTrack] = useState<number | null>(null);
   const [isNewQuestionOpen, setIsNewQuestionOpen] = useState(false);
   const [newTrackName, setNewTrackName] = useState("");
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
 
   // Fetch job tracks
   useEffect(() => {
@@ -142,6 +139,51 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
     };
 
     fetchQuestions();
+  }, [navigate]);
+
+  // Fetch users
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
+        setUsersLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:5000/api/admin/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 403) {
+            setError('Access Denied');
+            navigate('/dashboard');
+            return;
+          }
+          if (response.status === 401) {
+            localStorage.removeItem('token');
+            navigate('/login');
+            return;
+          }
+          throw new Error('Failed to fetch users');
+        }
+
+        const data: User[] = await response.json();
+        setUsers(data);
+      } catch (err) {
+        console.error('Error fetching users:', err);
+        setError('Failed to load users');
+        setUsers([]);
+      } finally {
+        setUsersLoading(false);
+      }
+    };
+
+    fetchUsers();
   }, [navigate]);
 
   const handleDelete = async (questionId: number) => {
@@ -339,9 +381,29 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
     ? questions.filter(q => q.jobTrack.id === selectedJobTrack)
     : questions;
 
-  const filteredUsers = mockUsers.filter(user => 
+  const filteredUsers = users.filter(user => 
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const formatJoinDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return 'Unknown';
+    }
+  };
+
+  const remainingRequests = (user: User) => {
+    const remaining = 20 - user.apiCallCount;
+    return remaining < 0 ? 0 : remaining;
+  };
+
+  const apiUsagePercent = (user: User) =>
+    Math.min(100, Math.max(0, (user.apiCallCount / 20) * 100));
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -379,7 +441,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
                 <Users className="w-5 h-5 text-[#0D9488]" />
               </div>
               <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
-                {mockUsers.length}
+                {users.length}
               </p>
             </Card>
 
@@ -399,7 +461,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
                 <Eye className="w-5 h-5 text-[#F59E0B]" />
               </div>
               <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
-                {mockUsers.reduce((sum, user) => sum + user.apiCallCount, 0)}
+                {users.reduce((sum, user) => sum + (user.apiCallCount || 0), 0)}
               </p>
             </Card>
 
@@ -409,7 +471,7 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
                 <Users className="w-5 h-5 text-[#14B8A6]" />
               </div>
               <p className="text-3xl" style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 700, color: '#0F172A' }}>
-                {Math.floor(mockUsers.length * 0.6)}
+                {Math.max(0, Math.floor(users.length * 0.6))}
               </p>
             </Card>
           </div>
@@ -470,35 +532,64 @@ export function AdminDashboard({ userEmail, onNavigate, onLogout }: AdminDashboa
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredUsers.map((user) => (
-                        <TableRow key={user.id} className="border-[#E2E8F0]">
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell className="text-[#64748B]">{user.joinDate}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="border-[#0D9488] text-[#0D9488]">
-                              {user.apiCallCount}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={user.role === "admin" ? "default" : "outline"}
-                              className={user.role === "admin" ? "bg-gradient-to-r from-[#0D9488] to-[#14B8A6] text-white border-0" : ""}
-                            >
-                              {user.role}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex gap-2 justify-end">
-                              <Button variant="ghost" size="sm" className="text-[#0D9488] hover:bg-[#0D9488]/10">
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="text-[#EF4444] hover:bg-[#EF4444]/10">
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
+                      {usersLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-[#64748B] py-8">
+                            Loading users...
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : filteredUsers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-[#64748B] py-8">
+                            No users found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredUsers.map((user) => {
+                          const usagePercent = apiUsagePercent(user);
+                          const remaining = remainingRequests(user);
+
+                          return (
+                            <TableRow key={user.id} className="border-[#E2E8F0]">
+                              <TableCell className="font-medium">
+                                <div className="flex flex-col">
+                                  <span>{user.email}</span>
+                                  <span className="text-xs text-[#94A3B8]">{user.provider?.toUpperCase() || 'EMAIL'}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-[#64748B]">
+                                {formatJoinDate(user.createdAt)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant="outline"
+                                  className={usagePercent >= 80 ? "border-[#EF4444] text-[#EF4444] bg-[#EF4444]/10" : "border-[#0D9488] text-[#0D9488] bg-[#0D9488]/10"}
+                                >
+                                  {user.apiCallCount} used / {remaining} left
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge 
+                                  variant={user.role === "ADMIN" ? "default" : "outline"}
+                                  className={user.role === "ADMIN" ? "bg-gradient-to-r from-[#0D9488] to-[#14B8A6] text-white border-0" : ""}
+                                >
+                                  {user.role || 'USER'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex gap-2 justify-end">
+                                  <Button variant="ghost" size="sm" className="text-[#0D9488] hover:bg-[#0D9488]/10">
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="text-[#EF4444] hover:bg-[#EF4444]/10" disabled>
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
                     </TableBody>
                   </Table>
                 </div>

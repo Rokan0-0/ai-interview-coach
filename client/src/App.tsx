@@ -29,7 +29,7 @@ export default function App() {
   const [user, setUser] = useState<{ email: string; isAdmin: boolean } | null>(null);
   const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
   const [selectedTrackName, setSelectedTrackName] = useState<string>("");
-  const [usageCount, setUsageCount] = useState(3); // Mock: 3 out of 5 used
+  const [usageCount, setUsageCount] = useState(3); // Mock: 3 out of 20 used
   const [usageLimit] = useState(20);
   const [loading, setLoading] = useState(true); // Add loading state
   const navigate = useNavigate();
