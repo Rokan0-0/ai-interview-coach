@@ -9,6 +9,7 @@ import { MyHistory } from "./components/MyHistory";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { Toaster } from "./components/ui/sonner";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import AuthCallback from "./pages/AuthCallback";
 
 export default function App() {
   // Debug: Check if page is reloading
@@ -208,15 +209,7 @@ export default function App() {
         <Route path="/" element={<LandingPage onSignInClick={() => setIsAuthModalOpen(true)} />} />
         <Route path="/login" element={<LandingPage onSignInClick={() => setIsAuthModalOpen(true)} />} />
         
-        {/* OAuth Callback Route */}
-        <Route path="/auth/callback" element={
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0D9488] mx-auto mb-4"></div>
-              <p className="text-[#64748B]">Completing sign in...</p>
-            </div>
-          </div>
-        } />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
