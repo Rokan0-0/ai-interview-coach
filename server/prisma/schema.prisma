@@ -23,6 +23,7 @@ model User {
   // --- New Fields ---
   apiCallCount    Int      @default(0)
   lastApiCallDate DateTime @default(now()) @updatedAt
+  role            String   @default("USER")
 
   createdAt DateTime  @default(now())
   answers   Answer[]  // A user can have many answers

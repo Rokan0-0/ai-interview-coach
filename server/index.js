@@ -9,6 +9,7 @@ import express from 'express';
 import cors from 'cors';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { protect } from './middleware/authMiddleware.js';
+import { adminProtect } from './middleware/adminMiddleware.js';
 
 // --- CONFIG EXECUTION ---
 dotenv.config(); // This loads our .env file!
@@ -389,5 +390,47 @@ app.get('/api/answers/my-history', protect, async (req, res) => {
   } catch (error) {
     console.error('Get history error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- ADMIN ROUTES ---
+// Get all questions
+app.get('/api/admin/questions', protect, adminProtect, async (req, res) => {
+  try {
+    const questions = await prisma.question.findMany({
+      include: { jobTrack: true }
+    });
+    res.status(200).json(questions);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch questions.' });
+  }
+});
+
+// Create a new question
+app.post('/api/admin/questions', protect, adminProtect, async (req, res) => {
+  try {
+    const { text, jobTrackId } = req.body;
+    const newQuestion = await prisma.question.create({
+      data: {
+        text: text,
+        jobTrackId: parseInt(jobTrackId)
+      }
+    });
+    res.status(201).json(newQuestion);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create question.' });
+  }
+});
+
+// Delete a question
+app.delete('/api/admin/questions/:id', protect, adminProtect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.question.delete({
+      where: { id: parseInt(id) }
+    });
+    res.status(204).send(); // No content
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete question.' });
   }
 });

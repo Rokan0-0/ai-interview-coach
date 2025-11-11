@@ -20,7 +20,7 @@ const protect = async (req, res, next) => {
       // We also remove the password from the object we get back
       req.user = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        select: { id: true, email: true, createdAt: true },
+        select: { id: true, email: true, createdAt: true, role: true },
       });
 
       if (!req.user) {
