@@ -78,7 +78,7 @@ This file demonstrates how the UI components and application logic are integrate
 
 - **State Management:** Uses React's `useState` hook to manage form inputs and error messages.
 - **API Interaction:**
-  - It makes an asynchronous `POST` request to `http://localhost:5000/api/login`.
+  - It makes an asynchronous `POST` request to `import.meta.env.VITE_API_URL/api/login`.
   - It sends `email` and `password` in the request body.
 - **Client-Side Authentication Flow:**
   - **On Success:** It expects a JSON response containing a `token`, saves this token to `localStorage`, and redirects the user to `/dashboard`.
@@ -97,7 +97,7 @@ This file demonstrates how the UI components and application logic are integrate
 
 ### 2.1. Inferred Architecture & Technology
 
-The backend is running on `http://localhost:5000`, which strongly suggests it is a **Node.js** application. Given its pairing with a React frontend, it is likely built with a framework like **Express.js** or a similar alternative.
+The backend is running on `import.meta.env.VITE_API_URL`, which strongly suggests it is a **Node.js** application. Given its pairing with a React frontend, it is likely built with a framework like **Express.js** or a similar alternative.
 
 - **Likely Technology Stack:**
   - **Runtime:** Node.js

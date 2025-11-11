@@ -49,7 +49,7 @@ app.use(passport.session());
 // --- PUBLIC ROUTES ---
 
 // Create a simple "GET" route for the root URL
-// This is what someone sees if they just visit http://localhost:5000
+// This is what someone sees if they just visit import.meta.env.VITE_API_URL
 app.get('/', (req, res) => {
   // Send a JSON response that the client expects
   // The client is looking for an object with a 'message' key

@@ -12,7 +12,7 @@ passport.use(
       // --- 1. Get Keys from .env ---
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback', // Our redirect URI
+      callbackURL: process.env.GOOGLE_CALLBACK_URL || 'import.meta.env.VITE_API_URL/api/auth/google/callback', // Our redirect URI
       scope: ['profile', 'email'], // What we ask Google for
     },
     async (accessToken, refreshToken, profile, done) => {

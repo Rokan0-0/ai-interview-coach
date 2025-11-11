@@ -48,7 +48,7 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
 
       try {
         setIsLoading(true);
-        const response = await fetch(`http://localhost:5000/api/tracks/${trackId}/questions`, {
+        const response = await fetch(`import.meta.env.VITE_API_URL/api/tracks/${trackId}/questions`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -108,7 +108,7 @@ export function InterviewPractice({ userEmail, trackId, trackName, onNavigate, o
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/answer', {
+      const response = await fetch('import.meta.env.VITE_API_URL/api/answer', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

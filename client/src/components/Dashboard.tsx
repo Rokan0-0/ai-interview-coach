@@ -64,7 +64,7 @@ export function Dashboard({ userEmail, onNavigate, onLogout, onSelectJobTrack }:
       }
 
       try {
-        const response = await fetch('http://localhost:5000/api/tracks', {
+        const response = await fetch('import.meta.env.VITE_API_URL/api/tracks', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
